@@ -147,38 +147,34 @@ for dt_str, report_date in days:
         print(f'файлов за {report_date} нет, пропускаю')
         continue
 
-    print(f'[-] обрабатываю {report_date} [-]')
+    print(f'--- обрабатываю {report_date} ---')
 
     # загрузка в стейджинг
-    ok = xlsx2sql(conn, terminals_path, 'stg_terminals')
-    ok = ok and xlsx2sql(conn, blacklist_path, 'stg_passport_blacklist')
-    ok = ok and csv2sql(conn, transactions_path, 'stg_transactions', ['transaction_date'])
+    xlsx2sql(conn, terminals_path, 'stg_terminals')
+    xlsx2sql(conn, blacklist_path, 'stg_passport_blacklist')
+    csv2sql(conn, transactions_path, 'stg_transactions', ['transaction_date'])
 
     # расчёт инкрементов
-    ok = ok and create_new_terminals(conn)
-    ok = ok and create_del_terminals(conn)
-    ok = ok and create_updated_terminals(conn)
+    create_new_terminals(conn)
+    create_del_terminals(conn)
+    create_updated_terminals(conn)
 
-    ok = ok and create_new_passports(conn)
+    create_new_passports(conn)
 
-    ok = ok and create_new_transactions(conn)
+    create_new_transactions(conn)
 
     # применение инкрементов
-    ok = ok and update_terminals_hist(conn)
-    ok = ok and update_passport_blacklist(conn)
-    ok = ok and update_transactions(conn)
+    update_terminals_hist(conn, report_date)
+    update_passport_blacklist(conn)
+    update_transactions(conn)
 
     # витрина за этот день
-    ok = ok and build_rep_fraud(conn, report_date)
+    build_rep_fraud(conn, report_date)
 
     # отаботанные файлы в архив
-    if ok:
-        log_load(conn, report_date)
-        archive_file(terminals_path, ARCHIVE_DIR)
-        archive_file(blacklist_path, ARCHIVE_DIR)
-        archive_file(transactions_path, ARCHIVE_DIR)
-    else:
-        print(f'день {report_date} не загружен, файлы остаются в data')
-        break
+    log_load(conn, report_date)
+    archive_file(terminals_path, ARCHIVE_DIR)
+    archive_file(blacklist_path, ARCHIVE_DIR)
+    archive_file(transactions_path, ARCHIVE_DIR)
 
 conn.close()

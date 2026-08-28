@@ -284,7 +284,9 @@ def create_stg_cards(conn):
             cursor.execute('''
                 create table if not exists dwh.stg_cards(
                     card_num varchar(128),
-                    account varchar(128))
+                    account varchar(128),
+                    create_dt date,
+                    update_dt date)
             ''')
         conn.commit()
         return True
@@ -342,7 +344,9 @@ def create_new_cards(conn):
                 create table dwh.stg_new_cards as
                     select
                         t1.card_num,
-                        t1.account as account_num
+                        t1.account as account_num,
+                        t1.create_dt,
+                        t1.update_dt
                     from dwh.stg_cards t1
                     left join dwh.v_cards t2 on t1.card_num = t2.card_num
                     where t2.card_num is null
@@ -385,7 +389,9 @@ def create_updated_cards(conn):
                 create table dwh.stg_updated_cards as
                     select
                         t1.card_num,
-                        t1.account as account_num
+                        t1.account as account_num,
+                        t1.create_dt,
+                        t1.update_dt
                     from dwh.stg_cards t1
                     inner join dwh.v_cards t2 on t1.card_num = t2.card_num
                     where t1.account is distinct from t2.account_num
@@ -405,7 +411,9 @@ def create_stg_accounts(conn):
                 create table if not exists dwh.stg_accounts(
                     account varchar(128),
                     valid_to date,
-                    client varchar(128))
+                    client varchar(128),
+                    create_dt date,
+                    update_dt date)
             ''')
         conn.commit()
         return True
@@ -465,7 +473,9 @@ def create_new_accounts(conn):
                     select
                         t1.account as account_num,
                         t1.valid_to,
-                        t1.client
+                        t1.client,
+                        t1.create_dt,
+                        t1.update_dt
                     from dwh.stg_accounts t1
                     left join dwh.v_accounts t2 on t1.account = t2.account_num
                     where t2.account_num is null
@@ -510,7 +520,9 @@ def create_updated_accounts(conn):
                     select
                         t1.account as account_num,
                         t1.valid_to,
-                        t1.client
+                        t1.client,
+                        t1.create_dt,
+                        t1.update_dt
                     from dwh.stg_accounts t1
                     inner join dwh.v_accounts t2 on t1.account = t2.account_num
                     where t1.client is distinct from t2.client
@@ -536,7 +548,9 @@ def create_stg_clients(conn):
                     date_of_birth date,
                     passport_num varchar(128),
                     passport_valid_to date,
-                    phone varchar(128))
+                    phone varchar(128),
+                    create_dt date,
+                    update_dt date)
             ''')
         conn.commit()
         return True
@@ -613,7 +627,9 @@ def create_new_clients(conn):
                         t1.date_of_birth,
                         t1.passport_num,
                         t1.passport_valid_to,
-                        t1.phone
+                        t1.phone,
+                        t1.create_dt,
+                        t1.update_dt
                     from dwh.stg_clients t1
                     left join dwh.v_clients t2 on t1.client_id = t2.client_id
                     where t2.client_id is null
@@ -667,7 +683,9 @@ def create_updated_clients(conn):
                         t1.date_of_birth,
                         t1.passport_num,
                         t1.passport_valid_to,
-                        t1.phone
+                        t1.phone,
+                        t1.create_dt,
+                        t1.update_dt
                     from dwh.stg_clients t1
                     inner join dwh.v_clients t2 on t1.client_id = t2.client_id
                     where t1.last_name is distinct from t2.last_name

@@ -1,54 +1,54 @@
 import psycopg2
 
-def update_terminals_hist(conn):
+def update_terminals_hist(conn, report_date):
     try:
         with conn.cursor() as cursor:
             cursor.execute('''
                 update dwh.dwh_dim_terminals_hist
-                set effective_to = current_timestamp - interval '1 microsecond'
+                set effective_to = %(dt)s::timestamp - interval '1 microsecond'
                 where terminal_id in (select terminal_id from dwh.stg_new_terminals)
                 and effective_to = '2999-12-31 23:59:59'
                 and deleted_flg = 1
-            ''')
+            ''', {'dt': report_date})
             cursor.execute('''
                 insert into dwh.dwh_dim_terminals_hist(
                     terminal_id, terminal_type, 
-                    terminal_city, terminal_address)
+                    terminal_city, terminal_address, effective_from)
                 select 
                     terminal_id, terminal_type, 
-                    terminal_city, terminal_address
+                    terminal_city, terminal_address, %(dt)s::timestamp
                 from dwh.stg_new_terminals
-            ''')
+            ''', {'dt': report_date})
             cursor.execute('''
                 update dwh.dwh_dim_terminals_hist
-                set effective_to = current_timestamp - interval '1 microsecond'
+                set effective_to = %(dt)s::timestamp - interval '1 microsecond'
                 where terminal_id in (select terminal_id from dwh.stg_updated_terminals)
                 and effective_to = '2999-12-31 23:59:59'
-            ''')
+            ''', {'dt': report_date})
             cursor.execute('''
                 insert into dwh.dwh_dim_terminals_hist(
                     terminal_id, terminal_type, 
-                    terminal_city, terminal_address)
+                    terminal_city, terminal_address, effective_from)
                 select 
                     terminal_id, terminal_type, 
-                    terminal_city, terminal_address
+                    terminal_city, terminal_address, %(dt)s::timestamp
                 from dwh.stg_updated_terminals
-            ''')
+            ''', {'dt': report_date})
             cursor.execute('''
                 update dwh.dwh_dim_terminals_hist
-                set effective_to = current_timestamp - interval '1 microsecond'
+                set effective_to = %(dt)s::timestamp - interval '1 microsecond'
                 where terminal_id in (select terminal_id from dwh.stg_del_terminals)
                 and effective_to = '2999-12-31 23:59:59'
-            ''')
+            ''', {'dt': report_date})
             cursor.execute('''
                 insert into dwh.dwh_dim_terminals_hist(
                     terminal_id, terminal_type, 
-                    terminal_city, terminal_address, deleted_flg)
+                    terminal_city, terminal_address, deleted_flg, effective_from)
                 select 
                     terminal_id, terminal_type, 
-                    terminal_city, terminal_address, 1
+                    terminal_city, terminal_address, 1, %(dt)s::timestamp
                 from dwh.stg_del_terminals
-            ''')
+            ''', {'dt': report_date})
         conn.commit()
         return True
     except psycopg2.Error as e:
@@ -111,9 +111,9 @@ def update_cards_hist(conn):
             ''')
             cursor.execute('''
                 insert into dwh.dwh_dim_cards_hist(
-                    card_num, account_num)
+                    card_num, account_num, effective_from)
                 select 
-                    card_num, account_num
+                    card_num, account_num, coalesce(update_dt, create_dt)
                 from dwh.stg_new_cards
             ''')
             cursor.execute('''
@@ -124,9 +124,9 @@ def update_cards_hist(conn):
             ''')
             cursor.execute('''
                 insert into dwh.dwh_dim_cards_hist(
-                    card_num, account_num)
+                    card_num, account_num, effective_from)
                 select 
-                    card_num, account_num
+                    card_num, account_num, coalesce(update_dt, create_dt)
                 from dwh.stg_updated_cards
             ''')
             cursor.execute('''
@@ -162,9 +162,9 @@ def update_accounts_hist(conn):
             ''')
             cursor.execute('''
                 insert into dwh.dwh_dim_accounts_hist(
-                    account_num, valid_to, client)
+                    account_num, valid_to, client, effective_from)
                 select 
-                    account_num, valid_to, client
+                    account_num, valid_to, client, coalesce(update_dt, create_dt)
                 from dwh.stg_new_accounts
             ''')
             cursor.execute('''
@@ -175,9 +175,9 @@ def update_accounts_hist(conn):
             ''')
             cursor.execute('''
                 insert into dwh.dwh_dim_accounts_hist(
-                    account_num, valid_to, client)
+                    account_num, valid_to, client, effective_from)
                 select 
-                    account_num, valid_to, client
+                    account_num, valid_to, client, coalesce(update_dt, create_dt)
                 from dwh.stg_updated_accounts
             ''')
             cursor.execute('''
@@ -214,10 +214,12 @@ def update_clients_hist(conn):
             cursor.execute('''
                 insert into dwh.dwh_dim_clients_hist(
                     client_id, last_name, first_name, patrinymic,
-                    date_of_birth, passport_num, passport_valid_to, phone)
+                    date_of_birth, passport_num, passport_valid_to, phone,
+                    effective_from)
                 select
                     client_id, last_name, first_name, patrinymic,
-                    date_of_birth, passport_num, passport_valid_to, phone
+                    date_of_birth, passport_num, passport_valid_to, phone,
+                    coalesce(update_dt, create_dt)
                 from dwh.stg_new_clients
             ''')
             cursor.execute('''
@@ -229,10 +231,12 @@ def update_clients_hist(conn):
             cursor.execute('''
                 insert into dwh.dwh_dim_clients_hist(
                     client_id, last_name, first_name, patrinymic,
-                    date_of_birth, passport_num, passport_valid_to, phone)
+                    date_of_birth, passport_num, passport_valid_to, phone,
+                    effective_from)
                 select
                     client_id, last_name, first_name, patrinymic,
-                    date_of_birth, passport_num, passport_valid_to, phone
+                    date_of_birth, passport_num, passport_valid_to, phone,
+                    coalesce(update_dt, create_dt)
                 from dwh.stg_updated_clients
             ''')
             cursor.execute('''
@@ -277,15 +281,24 @@ def build_rep_fraud(conn, report_date):
                         end as event_type,
                         %(dt)s::date as report_dt
                     from dwh.dwh_fact_transactions t
-                    join dwh.v_cards c on t.card_num = c.card_num
-                    join dwh.v_accounts a on c.account_num = a.account_num
-                    join dwh.v_clients cl on a.client = cl.client_id
+                    join dwh.dwh_dim_cards_hist c
+                        on t.card_num = c.card_num
+                        and t.trans_date between c.effective_from and c.effective_to
+                        and c.deleted_flg = 0
+                    join dwh.dwh_dim_accounts_hist a
+                        on c.account_num = a.account_num
+                        and t.trans_date between a.effective_from and a.effective_to
+                        and a.deleted_flg = 0
+                    join dwh.dwh_dim_clients_hist cl
+                        on a.client = cl.client_id
+                        and t.trans_date between cl.effective_from and cl.effective_to
+                        and cl.deleted_flg = 0
                     left join dwh.dwh_fact_passport_blacklist b
                         on cl.passport_num = b.passport_num
                         and b.entry_dt <= t.trans_date
                     where t.trans_date::date = %(dt)s
                     and (b.passport_num is not null
-                         or cl.passport_valid_to < t.trans_date)
+                         or cl.passport_valid_to < t.trans_date::date)
 
                     union all
 
@@ -297,11 +310,20 @@ def build_rep_fraud(conn, report_date):
                         'Недействующий договор' as event_type,
                         %(dt)s::date as report_dt
                     from dwh.dwh_fact_transactions t
-                    join dwh.v_cards c on t.card_num = c.card_num
-                    join dwh.v_accounts a on c.account_num = a.account_num
-                    join dwh.v_clients cl on a.client = cl.client_id
+                    join dwh.dwh_dim_cards_hist c
+                        on t.card_num = c.card_num
+                        and t.trans_date between c.effective_from and c.effective_to
+                        and c.deleted_flg = 0
+                    join dwh.dwh_dim_accounts_hist a
+                        on c.account_num = a.account_num
+                        and t.trans_date between a.effective_from and a.effective_to
+                        and a.deleted_flg = 0
+                    join dwh.dwh_dim_clients_hist cl
+                        on a.client = cl.client_id
+                        and t.trans_date between cl.effective_from and cl.effective_to
+                        and cl.deleted_flg = 0
                     where t.trans_date::date = %(dt)s
-                    and a.valid_to < t.trans_date
+                    and a.valid_to < t.trans_date::date
 
                     union all
 
@@ -322,10 +344,22 @@ def build_rep_fraud(conn, report_date):
                             lag(tm.terminal_city) over w as prev_city,
                             lag(t.trans_date) over w as prev_dt
                         from dwh.dwh_fact_transactions t
-                        join dwh.v_cards c on t.card_num = c.card_num
-                        join dwh.v_accounts a on c.account_num = a.account_num
-                        join dwh.v_clients cl on a.client = cl.client_id
-                        join dwh.v_terminals tm on t.terminal = tm.terminal_id
+                        join dwh.dwh_dim_cards_hist c
+                            on t.card_num = c.card_num
+                            and t.trans_date between c.effective_from and c.effective_to
+                            and c.deleted_flg = 0
+                        join dwh.dwh_dim_accounts_hist a
+                            on c.account_num = a.account_num
+                            and t.trans_date between a.effective_from and a.effective_to
+                            and a.deleted_flg = 0
+                        join dwh.dwh_dim_clients_hist cl
+                            on a.client = cl.client_id
+                            and t.trans_date between cl.effective_from and cl.effective_to
+                            and cl.deleted_flg = 0
+                        join dwh.dwh_dim_terminals_hist tm
+                            on t.terminal = tm.terminal_id
+                            and t.trans_date between tm.effective_from and tm.effective_to
+                            and tm.deleted_flg = 0
                         window w as (partition by a.client order by t.trans_date)
                     ) x
                     where x.trans_date::date = %(dt)s
@@ -357,9 +391,18 @@ def build_rep_fraud(conn, report_date):
                             lag(t.oper_result, 3) over w as res3,
                             lag(t.trans_date, 3) over w as dt3
                         from dwh.dwh_fact_transactions t
-                        join dwh.v_cards c on t.card_num = c.card_num
-                        join dwh.v_accounts a on c.account_num = a.account_num
-                        join dwh.v_clients cl on a.client = cl.client_id
+                        join dwh.dwh_dim_cards_hist c
+                            on t.card_num = c.card_num
+                            and t.trans_date between c.effective_from and c.effective_to
+                            and c.deleted_flg = 0
+                        join dwh.dwh_dim_accounts_hist a
+                            on c.account_num = a.account_num
+                            and t.trans_date between a.effective_from and a.effective_to
+                            and a.deleted_flg = 0
+                        join dwh.dwh_dim_clients_hist cl
+                            on a.client = cl.client_id
+                            and t.trans_date between cl.effective_from and cl.effective_to
+                            and cl.deleted_flg = 0
                         window w as (partition by t.card_num order by t.trans_date)
                     ) x
                     where x.trans_date::date = %(dt)s
