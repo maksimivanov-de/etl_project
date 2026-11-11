@@ -1,5 +1,5 @@
-pandas
-openpyxl
-psycopg2-binary
-python-dotenv
-sqlalchemy
+pandas==3.1.0
+openpyxl==3.1.5
+psycopg2-binary==2.9.13
+python-dotenv==1.2.4
+SQLAlchemy==2.1.6

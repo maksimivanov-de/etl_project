@@ -1,3 +1,6 @@
+create schema if not exists bank;
+set search_path to bank;
+
 /*
 cards
 */
